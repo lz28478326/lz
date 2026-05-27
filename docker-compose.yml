@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # 后端API服务
+  backend:
+    build: ./backend
+    container_name: monitor-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Asia/Shanghai
+      - SECRET_KEY=your-secret-key-change-me
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  # 前端Nginx服务
+  frontend:
+    build: ./frontend
+    container_name: monitor-frontend
+    ports:
+      - "3000:80"
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  # 被控节点Agent（示例，实际部署在目标机器上）
+  agent-1:
+    build: ./agent
+    container_name: monitor-agent-1
+    ports:
+      - "9100:9100"
+    environment:
+      - AGENT_NAME=server-1
+      - BACKEND_URL=http://backend:8000
+    restart: unless-stopped
+    networks:
+      - monitor-net
+    # 模拟被监控机器
+    pid: "host"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+
+networks:
+  monitor-net:
+    driver: bridge
