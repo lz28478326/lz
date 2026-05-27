@@ -267,6 +267,19 @@ docker compose logs -f
 
 编辑 `docker-compose.yml` 可修改：
 
+```yaml
+services:
+  frontend:
+    ports:
+      - "3000:80"     # 修改前端端口映射
+
+  backend:
+    ports:
+      - "8000:8000"   # 修改后端端口映射
+    environment:
+      - TZ=Asia/Shanghai  # 时区设置
+```
+
 - 前端端口映射（默认 `3000:80`）
 - 后端端口映射（默认 `8000:8000`）
 - 时区设置（默认 `Asia/Shanghai`）
@@ -293,9 +306,19 @@ lsof -i :3000
 lsof -i :8000
 
 # 修改 docker-compose.yml 中的端口映射
+services:
+  frontend:
+    ports:
+      - "8080:80"    # 改成其他端口
+
+  backend:
+    ports:
+      - "9000:8000"  # 改成其他端口
 ```
 
-
+```bash
+docker compose up -d --build
+```
 
 ### 2. 添加主机后显示"离线"
 
@@ -305,6 +328,15 @@ lsof -i :8000
 
 ### 3. Docker容器无法访问宿主机网络
 
+修改 `docker-compose.yml` 使用 host 网络模式：
+
+```yaml
+services:
+  backend:
+    network_mode: "host"
+    # ports 映射需注释掉
+```
+
 - 确保容器网络模式正确
 - 检查被控主机是否在可达网络中
 
@@ -312,6 +344,26 @@ lsof -i :8000
 
 - 确认后端服务正常运行
 - 检查浏览器控制台是否有报错
+- 打开浏览器开发者工具（F12），查看 Console 是否有报错
+
+### 5. 环形图数据不更新
+
+- 确认大屏右上角显示"已连接"状态
+- SSH 到被控机手动执行 `top -bn1`、`free`、`df -h /`，确认命令有正常输出
+- 如果命令格式不兼容，编辑 `backend/commands.py` 调整解析逻辑
+
+### 6. 停止与重启
+
+```bash
+# 停止所有服务
+docker compose down
+
+# 重启所有服务
+docker compose restart
+
+# 重新构建并启动
+docker compose up -d --build
+```
 
 ## 项目亮点
 
