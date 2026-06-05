@@ -1,17 +1,29 @@
 import paramiko
-from config import DEFAULT_SERVERS, COMMON_COMMANDS
+from config import DEFAULT_SERVERS, COMMON_COMMANDS, encrypt_password, decrypt_password
 
 # 全局服务器字典
-SERVERS = dict(DEFAULT_SERVERS)
+SERVERS = {}
+
+# 如果有预设服务器，加载时自动加密密码
+for sid, info in DEFAULT_SERVERS.items():
+    SERVERS[sid] = dict(info)
+    if "password" in SERVERS[sid]:
+        SERVERS[sid]["password"] = encrypt_password(SERVERS[sid]["password"])
 
 def ssh_connect(server):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # 解密密码后连接
+    password = server.get("password", "")
+    try:
+        password = decrypt_password(password)
+    except:
+        pass
     ssh.connect(
         hostname=server["host"],
         port=server.get("port", 22),
         username=server.get("username", "root"),
-        password=server.get("password", ""),
+        password=password,
         timeout=5
     )
     return ssh
@@ -21,6 +33,7 @@ def exec_cmd(ssh, command):
     return stdout.read().decode().strip(), stderr.read().decode().strip()
 
 def add_server(ip, password, username="root", port=22, name=None):
+    """添加服务器（密码自动加密存储）"""
     server_id = "server-" + ip.replace(".", "-")
     if name is None:
         name = f"服务器 ({ip})"
@@ -28,7 +41,7 @@ def add_server(ip, password, username="root", port=22, name=None):
         "host": ip,
         "port": port,
         "username": username,
-        "password": password,
+        "password": encrypt_password(password),
         "name": name
     }
     return server_id
@@ -46,7 +59,6 @@ def get_remote_stats(server_id):
     try:
         ssh = ssh_connect(server)
         
-        # CPU
         cpu_out, _ = exec_cmd(ssh, "top -bn1 | grep 'Cpu(s)' | awk '{print $2+$4}'")
         try:
             cpu = round(float(cpu_out), 1)
@@ -57,38 +69,30 @@ def get_remote_stats(server_id):
             except:
                 cpu = 0
         
-        # 内存
         mem_out, _ = exec_cmd(ssh, "free | grep Mem | awk '{printf \"%.1f\", $3/$2*100}'")
         try:
             memory = round(float(mem_out), 1)
         except:
             memory = 0
         
-        # 磁盘
         disk_out, _ = exec_cmd(ssh, "df -h / | tail -1 | awk '{print $5}' | sed 's/%//'")
         try:
             disk = round(float(disk_out), 1)
         except:
             disk = 0
         
-        # 负载
         load_out, _ = exec_cmd(ssh, "uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//'")
         try:
             load = round(float(load_out), 2)
         except:
             load = 0
         
-        # 运行时间
         uptime_out, _ = exec_cmd(ssh, "uptime -p | sed 's/up //'")
         
         ssh.close()
         return {
-            "cpu": cpu,
-            "memory": memory,
-            "disk": disk,
-            "load": load,
-            "uptime": uptime_out,
-            "online": True
+            "cpu": cpu, "memory": memory, "disk": disk,
+            "load": load, "uptime": uptime_out, "online": True
         }
     except Exception as e:
         return {
